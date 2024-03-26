@@ -1,11 +1,11 @@
 [package]
-name = "canoon"
-description = "canoon is a installer/updater for cano, the vim inspired text editor"
+name = "canoup"
+description = "canoup is a installer/updater for cano, the vim inspired text editor"
 version = "0.1.0"
 edition = "2021"
 authors = ["Tim Teichmann"]
 license = "Apache-2.0"
-repository = "https://github.com/tim-tm/canoon"
+repository = "https://github.com/tim-tm/canoup"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

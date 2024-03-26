@@ -144,7 +144,7 @@ fn build_install(path: &str) {
     if copy_success.status.success() {
         println!("Install successful.")
     } else {
-        eprintln!("Install failed. (canoon needs root permissions)");
+        eprintln!("Install failed. (canoup needs root permissions)");
         exit(1);
     }
 }
