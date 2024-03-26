@@ -4,7 +4,7 @@ use git2::Repository;
 use home::home_dir;
 
 const URL: &str = "https://github.com/CobbCoding1/Cano.git";
-const INSTALL_DIR: &str = "/usr/local/bin/";
+const INSTALL_DIR: &str = "/usr/bin/";
 
 /**
  *  NOTE: The following three methods are from an git2-rs example (https://github.com/rust-lang/git2-rs/blob/master/examples/pull.rs)
