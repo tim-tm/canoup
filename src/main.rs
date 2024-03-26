@@ -1,10 +1,13 @@
-use core::panic;
-use std::process::{exit, Command};
 use git2::Repository;
 use home::home_dir;
+use std::{
+    fs::File,
+    process::{exit, Command},
+};
 
 const URL: &str = "https://github.com/CobbCoding1/Cano.git";
 const INSTALL_DIR: &str = "/usr/bin/";
+const INSTALL_FILE_PATH: &str = "/usr/bin/cano";
 
 /**
  *  NOTE: The following three methods are from an git2-rs example (https://github.com/rust-lang/git2-rs/blob/master/examples/pull.rs)
@@ -114,14 +117,52 @@ fn do_merge<'a>(
     Ok(())
 }
 
+fn build_install(path: &str) {
+    println!("Building cano...");
+    let build_success = Command::new("make")
+        .arg("-B")
+        .current_dir(path)
+        .output()
+        .expect("Failed to run gnu-make.");
+    print!("{}", String::from_utf8_lossy(&build_success.stdout));
+    if build_success.status.success() {
+        println!("Build successful.")
+    } else {
+        eprintln!("Build failed.");
+        exit(1);
+    }
+
+    let cano_bin = format!("{path}build/cano");
+    let copy_success = Command::new("sudo")
+        .arg("install")
+        .arg("-v")
+        .arg(cano_bin)
+        .arg(INSTALL_DIR)
+        .output()
+        .expect("Failed to copy cano binary.");
+    print!("{}", String::from_utf8_lossy(&copy_success.stdout));
+    if copy_success.status.success() {
+        println!("Install successful.")
+    } else {
+        eprintln!("Install failed. (canoon needs root permissions)");
+        exit(1);
+    }
+}
+
 fn main() {
     let home_dir = match home_dir() {
         Some(d) => d,
-        None => panic!("Failed to find home directory.")
+        None => {
+            eprintln!("Failed to find home directory.");
+            exit(1);
+        }
     };
     let home_dir_str = match home_dir.to_str() {
         Some(s) => s,
-        None => panic!("Failed to convert home directory to string.")
+        None => {
+            eprintln!("Failed to convert home directory to string.");
+            exit(1);
+        }
     };
     let cano_dir = format!("{home_dir_str}/cano/");
 
@@ -132,97 +173,56 @@ fn main() {
             Ok(repo) => {
                 cloned = true;
                 repo
-            },
+            }
             Err(e) => {
                 eprintln!("Failed to clone repository: {e}");
                 exit(1);
             }
-        }
+        },
     };
     println!("Cano source tree present at: {cano_dir}");
-    
-    if cloned == false {
-        let remote_branch = "main";
-        let mut remote = match repo.find_remote("origin") {
-            Ok(remote) => remote,
-            Err(e) => {
-                eprintln!("Failed to find remote: {e}");
-                exit(1);
-            }
-        };
 
-        let mut fo = git2::FetchOptions::new();
-        fo.download_tags(git2::AutotagOption::All);
-        let _ = remote.fetch(&[remote_branch], Some(&mut fo), None);
+    let _ = match File::open(INSTALL_FILE_PATH) {
+        Err(_) => {
+            build_install(&cano_dir);
+        }
+        Ok(_) => {
+            if cloned == false {
+                let remote_branch = "main";
+                let mut remote = match repo.find_remote("origin") {
+                    Ok(remote) => remote,
+                    Err(e) => {
+                        eprintln!("Failed to find remote: {e}");
+                        exit(1);
+                    }
+                };
 
-        let stats = remote.stats();
-        if stats.total_objects() != 0 {
-            let fetch_head = repo.find_reference("FETCH_HEAD").expect("Failure");
-            let _ = match do_merge(&repo, remote_branch, repo.reference_to_annotated_commit(&fetch_head).expect("Failure")) {
-                Ok(_) => (),
-                Err(e) => {
-                    eprintln!("Failed to merge {e}");
-                    exit(1);
+                let mut fo = git2::FetchOptions::new();
+                fo.download_tags(git2::AutotagOption::All);
+                let _ = remote.fetch(&[remote_branch], Some(&mut fo), None);
+
+                let stats = remote.stats();
+                if stats.total_objects() != 0 {
+                    let fetch_head = repo.find_reference("FETCH_HEAD").expect("Failure");
+                    let _ = match do_merge(
+                        &repo,
+                        remote_branch,
+                        repo.reference_to_annotated_commit(&fetch_head)
+                            .expect("Failure"),
+                    ) {
+                        Ok(_) => (),
+                        Err(e) => {
+                            eprintln!("Failed to merge {e}");
+                            exit(1);
+                        }
+                    };
+                    build_install(&cano_dir);
+                } else {
+                    println!("Latest version of cano installed.")
                 }
-            };
-
-            println!("Building cano...");
-            let build_success = Command::new("make")
-                .arg("-B")
-                .current_dir(cano_dir.clone())
-                .output()
-                .expect("Failed to run gnu-make.");
-            print!("{}", String::from_utf8_lossy(&build_success.stdout));
-            if build_success.status.success() {
-                println!("Build successful.")
             } else {
-                eprintln!("Build failed.");
-                exit(1);
+                build_install(&cano_dir);
             }
-
-            let cano_bin = format!("{cano_dir}build/cano");
-            let copy_success = Command::new("cp")
-                .arg(cano_bin)
-                .arg(INSTALL_DIR)
-                .output()
-                .expect("Failed to copy cano binary.");  
-            print!("{}", String::from_utf8_lossy(&copy_success.stdout));
-            if copy_success.status.success() {
-                println!("Install successful.")
-            } else {
-                eprintln!("Install failed. (canoon needs root permissions)");
-                exit(1);
-            }
-        } else {
-            println!("Latest version of cano installed.")
         }
-    } else {
-        println!("Building cano...");
-        let build_success = Command::new("make")
-            .arg("-B")
-            .current_dir(cano_dir.clone())
-            .output()
-            .expect("Failed to run gnu-make.");
-        print!("{}", String::from_utf8_lossy(&build_success.stdout));
-        if build_success.status.success() {
-            println!("Build successful.")
-        } else {
-            eprintln!("Build failed.");
-            exit(1);
-        }
-
-        let cano_bin = format!("{cano_dir}build/cano");
-        let copy_success = Command::new("cp")
-            .arg(cano_bin)
-            .arg(INSTALL_DIR)
-            .output()
-            .expect("Failed to copy cano binary.");  
-        print!("{}", String::from_utf8_lossy(&copy_success.stdout));
-        if copy_success.status.success() {
-            println!("Install successful.")
-        } else {
-            eprintln!("Install failed. (canoon needs root permissions)");
-            exit(1);
-        }
-    }
+    };
 }
